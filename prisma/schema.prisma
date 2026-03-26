@@ -1,0 +1,106 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Dispositivos registrados ──────────────────────────────────────────────────
+model Device {
+  deviceId              String          @id @map("device_id") @db.VarChar(50)
+  deviceName            String          @map("device_name") @db.VarChar(100)
+  location              String?         @db.VarChar(100)
+  totalTranscriptions   Int             @default(0) @map("total_transcriptions")
+  lastTranscriptionAt   DateTime?       @map("last_transcription_at")
+  createdAt             DateTime        @default(now()) @map("created_at")
+  isActive              Boolean         @default(true) @map("is_active")
+
+  transcriptions        Transcription[]
+  sessions              Session[]
+
+  @@map("devices")
+}
+
+// ── Transcripciones ───────────────────────────────────────────────────────────
+model Transcription {
+  id                  BigInt    @id @default(autoincrement())
+  deviceId            String    @map("device_id") @db.VarChar(50)
+  transcriptionText   String    @map("transcription_text") @db.Text
+  audioDurationMs     Int?      @map("audio_duration_ms")
+  confidenceScore     Decimal?  @map("confidence_score") @db.Decimal(3, 2)
+  language            String    @default("es") @db.VarChar(10)
+  modelUsed           String    @default("whisper-tiny") @map("model_used") @db.VarChar(50)
+  transcriptionTimeMs Int?      @map("transcription_time_ms")
+  sampleRate          Int       @default(16000) @map("sample_rate")
+  isSimulation        Boolean   @default(false) @map("is_simulation")
+  recordedAt          DateTime? @map("recorded_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  metadata            Json?
+
+  device              Device    @relation(fields: [deviceId], references: [deviceId])
+
+  @@map("transcriptions")
+}
+
+// ── Sesiones de conversación ──────────────────────────────────────────────────
+// Una sesión = una conversación continua con Edy desde un dispositivo.
+// Los mensajes se guardan en JSON para poder recargar el historial.
+model Session {
+  id          String    @id @default(uuid())
+  deviceId    String    @map("device_id") @db.VarChar(50)
+  projectSlug String?   @map("project_slug") @db.VarChar(100)  // e.g. "edy", "taskeer"
+  messages    Json      @default("[]")                           // ChatMessage[]
+  summary     String?   @db.Text                                 // resumen comprimido si crece mucho
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  closedAt    DateTime? @map("closed_at")
+
+  device      Device    @relation(fields: [deviceId], references: [deviceId])
+
+  @@map("sessions")
+}
+
+// ── Tareas / recordatorios ────────────────────────────────────────────────────
+model Task {
+  id          BigInt    @id @default(autoincrement())
+  title       String    @db.VarChar(255)
+  description String?   @db.Text
+  dueAt       DateTime? @map("due_at")
+  priority    Priority  @default(MEDIUM)
+  status      TaskStatus @default(PENDING)
+  projectSlug String?   @map("project_slug") @db.VarChar(100)
+  source      String    @default("edy") @db.VarChar(50)  // "edy" | "taskeer"
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("tasks")
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+// ── Proyectos / contextos ─────────────────────────────────────────────────────
+// Metadatos de cada proyecto cuyo contexto puede cargarse en conversación.
+model Project {
+  slug        String    @id @db.VarChar(100)          // "edy", "taskeer", "weatherly"
+  name        String    @db.VarChar(150)
+  description String?   @db.Text
+  contextPath String?   @map("context_path") @db.VarChar(500) // ruta al .md o directorio
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("projects")
+}
