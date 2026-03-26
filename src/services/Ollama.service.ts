@@ -103,16 +103,38 @@ export async function analyzeIntent(text: string): Promise<IntentResult> {
 
 Texto: "${text}"
 
+Tipos de intent disponibles:
+- CREATE_REMINDER  → recordatorio con fecha/hora ("recuérdame X mañana a las 8")
+- CREATE_TASK      → una sola tarea sin fecha específica ("agrega tarea: revisar PR")
+- CREATE_TASK_BATCH → múltiples tareas en un solo comando ("esta semana necesito: X, Y, Z")
+- CREATE_PROJECT   → crear un proyecto nuevo ("crea un proyecto Express TypeScript llamado mi-api")
+- GET_WEATHER      → consulta de clima
+- GET_TASK_LIST    → listar tareas pendientes
+- OPEN_PROJECT     → cambiar contexto a un proyecto
+- GENERAL_QUERY    → pregunta técnica o consulta general
+- UNKNOWN          → no se reconoció la intención
+
 Devuelve este JSON (sin markdown, sin explicaciones):
 {
-  "type": "CREATE_REMINDER" | "CREATE_TASK" | "GET_WEATHER" | "GET_TASK_LIST" | "OPEN_PROJECT" | "GENERAL_QUERY" | "UNKNOWN",
+  "type": "<tipo>",
   "confidence": 0.0-1.0,
   "params": {
-    "task": "descripción si aplica",
-    "datetime": "fecha/hora en ISO o expresión natural",
-    "priority": "LOW" | "MEDIUM" | "HIGH",
-    "projectSlug": "slug si menciona proyecto",
+    "task": "descripción si es una sola tarea",
+    "datetime": "fecha/hora expresión natural",
+    "priority": "LOW | MEDIUM | HIGH",
+    "projectSlug": "slug-del-proyecto si menciona uno existente",
     "query": "pregunta si es consulta general",
+    "location": "lugar si pregunta clima",
+
+    "tasks": [
+      { "title": "...", "datetime": "...", "priority": "MEDIUM", "projectSlug": "..." }
+    ],
+
+    "projectName": "nombre del proyecto a crear (solo para CREATE_PROJECT)",
+    "stack": "express-ts | express-js | angular | python-flask | python-fastapi | arduino-cpp | generic",
+    "description": "descripción del proyecto a crear"
+  }
+}
     "location": "lugar si pregunta clima"
   }
 }`;
