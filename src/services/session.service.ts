@@ -49,7 +49,7 @@ export async function getSession(sessionId: string): Promise<SessionState | null
         sessionId: record.id,
         deviceId: record.deviceId,
         projectSlug: record.projectSlug,
-        messages: record.messages as ChatMessage[],
+        messages: (record.messages as unknown) as ChatMessage[],
         createdAt: record.createdAt.toISOString(),
     };
 
@@ -111,4 +111,16 @@ export async function getActiveSessions(deviceId: string) {
         orderBy: { updatedAt: 'desc' },
         take: 10,
     });
+}
+// ── Renombrar sesión ──────────────────────────────────────────────────────────
+
+export async function renameSession(sessionId: string, name: string): Promise<void> {
+    // Usamos 'as any' temporalmente hasta correr: npx prisma generate
+    // El campo 'name' existe en el schema pero el cliente aún no lo conoce
+    await (prisma.session.update as any)({
+        where: { id: sessionId },
+        data: { name },
+    });
+    const cached = memoryCache.get(sessionId);
+    if (cached) memoryCache.set(sessionId, { ...cached, name } as any);
 }

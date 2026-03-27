@@ -5,6 +5,7 @@ import { createSession, getSession, appendMessage } from '../services/session.se
 import { loadProjectContext } from '../services/context.service';
 import { analyzeIntent } from '../services/Ollama.service';
 import { executeIntent } from '../services/action.router';
+import { fetchRagContext } from '../integrations/rag.client';
 
 export const streamRouter = Router();
 
@@ -62,19 +63,7 @@ streamRouter.get('/', async (req: Request, res: Response) => {
             : null;
 
         // 3. Contexto RAG (opcional, no bloquea el stream si falla)
-        let ragContext = '';
-        try {
-            const ragRes = await fetch(`${process.env.RAG_SERVICE_URL ?? 'http://localhost:5001'}/query`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ question: text, top_k: 3 }),
-                signal: AbortSignal.timeout(4000),
-            });
-            if (ragRes.ok) {
-                const rag = await ragRes.json() as { context: string };
-                ragContext = rag.context ?? '';
-            }
-        } catch { /* RAG no disponible */ }
+        const { context: ragContext } = await fetchRagContext(text);
 
         // 4. Construir historial + system prompt
         let systemContent = 'Eres Edy, el asistente de ingeniería personal. Responde en español con ejemplos de código cuando aplique.';
@@ -96,41 +85,81 @@ streamRouter.get('/', async (req: Request, res: Response) => {
             { role: 'user' as const, content: augmentedText },
         ];
 
-        // 5. Analizar intent en paralelo (no espera al stream)
-        const intentPromise = analyzeIntent(text);
+        // 5. AbortController para cancelar Ollama si el cliente se desconecta
+        const abortController = new AbortController();
+        req.on('close', () => {
+            if (!res.writableEnded) abortController.abort();
+        });
 
-        // 6. Stream de tokens
+        // 6. Stream de tokens — intent se analiza con los primeros 120 chars
+        //    para no esperar a que termine el stream completo
         let fullReply = '';
+        let intentStarted = false;
+        let intentPromise: ReturnType<typeof analyzeIntent> | null = null;
+
         const stream = await ollama.chat({ model: MODEL, messages, stream: true });
 
         for await (const chunk of stream) {
+            // Si el cliente se fue, abortar
+            if (abortController.signal.aborted) break;
+
             const token = chunk.message.content;
             if (token) {
                 fullReply += token;
                 emit({ type: 'token', content: token });
+
+                // Lanzar el análisis de intent en background después de los
+                // primeros 120 caracteres — suficiente contexto, sin esperar el fin
+                if (!intentStarted && fullReply.length >= 120) {
+                    intentStarted = true;
+                    intentPromise = analyzeIntent(text); // no await aquí
+                }
             }
         }
 
-        // 7. Emitir intent y ejecutar acción
-        const intent = await intentPromise;
-        const actionResult = await executeIntent(intent);
+        // Si el texto fue muy corto, lanzar el intent ahora
+        if (!intentStarted) {
+            intentPromise = analyzeIntent(text);
+        }
 
-        emit({ type: 'intent', content: intent });
+        // 7. Resolver intent y ejecutar acción con timeout de seguridad
+        const intent = await intentPromise!;
 
+        // Si executeIntent tarda más de 8 segundos (ej: Taskeer sin configurar),
+        // emitir done de todas formas para no bloquear el cliente
+        const actionResult = await Promise.race([
+            executeIntent(intent),
+            new Promise<{ success: boolean; message: string }>(resolve =>
+                setTimeout(() => resolve({ success: false, message: '' }), 8000)
+            ),
+        ]);
+
+        // Emitir intent solo si es relevante (no GENERAL_QUERY)
+        if (intent.type !== 'GENERAL_QUERY' && intent.type !== 'UNKNOWN') {
+            emit({ type: 'intent', content: intent });
+        }
+
+        // Emitir acción si produjo un mensaje
         if (actionResult.message) {
             emit({ type: 'action', content: actionResult.message });
         }
 
-        // 8. Persistir conversación
-        await appendMessage(session.sessionId, { role: 'user', content: text });
-        await appendMessage(session.sessionId, { role: 'assistant', content: fullReply });
+        // 8. Persistir conversación de forma no bloqueante
+        Promise.all([
+            appendMessage(session.sessionId, { role: 'user', content: text }),
+            appendMessage(session.sessionId, { role: 'assistant', content: fullReply }),
+        ]).catch(err => console.error('[stream] persist error:', err));
 
+        // 9. Señal de fin — el cliente cierra el EventSource al recibirla
         emit({ type: 'done', sessionId: session.sessionId });
 
     } catch (err) {
-        console.error('[stream] error:', err);
-        emit({ type: 'error', content: 'Error procesando la solicitud.' });
+        if (!res.writableEnded) {
+            console.error('[stream] error:', err);
+            emit({ type: 'error', content: 'Error procesando la solicitud.' });
+        }
     } finally {
-        res.end();
+        // Cierre explícito y limpio de la conexión SSE
+        if (!res.writableEnded) res.end();
     }
 });

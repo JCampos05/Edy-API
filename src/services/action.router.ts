@@ -1,8 +1,8 @@
 import type { IntentResult } from '../types';
-import { PrismaClient, Priority } from '@prisma/client';
-import { taskeerClient } from './taskeer.client';
-import { weatherlyClient } from './weatherly.client';
-import { extractDateFromText, formatDateForReply } from './dateParser';
+import { PrismaClient, priority } from '@prisma/client';
+import { taskeerClient } from '../integrations/taskeer.client';
+import { weatherlyClient } from '../integrations/weatherly.client';
+import { extractDateFromText, formatDateForReply } from '../utils/date-parser';
 import { scaffoldProject } from './scaffold.service';
 import { createTaskBatch, normalizeBatchItems } from './BatchTask.service';
 import type { ProjectStack } from '../types/project.types';

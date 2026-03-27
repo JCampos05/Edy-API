@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import type { ProjectStack, ProjectScaffoldResult } from '../types/project.types';
+import { toSlug } from '../utils/slug';
 
 const CONTEXT_BASE = process.env.CONTEXT_BASE_PATH ?? './projects';
 
@@ -264,15 +265,7 @@ function gitignoreFor(stack: ProjectStack): string {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function toSlug(name: string): string {
-    return name
-        .toLowerCase()
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // quitar acentos
-        .replace(/[^a-z0-9\s-]/g, '')
-        .trim()
-        .replace(/\s+/g, '-');
-}
+// toSlug importado desde ../utils/slug
 
 const stackLabels: Partial<Record<ProjectStack, string>> = {
     'express-ts': 'Express.js + TypeScript + Prisma',

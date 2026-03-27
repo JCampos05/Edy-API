@@ -51,6 +51,7 @@ model Session {
   id          String    @id @default(uuid())
   deviceId    String    @map("device_id") @db.VarChar(50)
   projectSlug String?   @map("project_slug") @db.VarChar(100)  // e.g. "edy", "taskeer"
+  name        String?   @db.VarChar(150)                        // nombre personalizado
   messages    Json      @default("[]")                           // ChatMessage[]
   summary     String?   @db.Text                                 // resumen comprimido si crece mucho
   createdAt   DateTime  @default(now()) @map("created_at")

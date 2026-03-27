@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { getActiveSessions, closeSession } from '../services/session.service';
+import { getActiveSessions, closeSession, renameSession } from '../services/session.service';
 
 export const sessionRouter = Router();
 
@@ -20,5 +20,17 @@ sessionRouter.delete('/:sessionId', async (req: Request, res: Response) => {
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: 'Failed to close session' });
+    }
+});
+
+// PATCH /api/v1/sessions/:sessionId — renombrar sesión
+sessionRouter.patch('/:sessionId', async (req: Request, res: Response) => {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: 'name is required' });
+    try {
+        await renameSession(req.params.sessionId, name);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to rename session' });
     }
 });

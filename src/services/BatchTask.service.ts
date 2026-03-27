@@ -1,5 +1,5 @@
 import { PrismaClient, Priority } from '@prisma/client';
-import { extractDateFromText, formatDateForReply } from './dateParser';
+import { extractDateFromText, formatDateForReply } from '../utils/date-parser';
 import type { BatchTaskItem } from '../types/project.types';
 
 const prisma = new PrismaClient();

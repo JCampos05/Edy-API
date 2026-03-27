@@ -1,27 +1,9 @@
 import { Ollama } from 'ollama';
 import type { ChatMessage, ProjectContext, IntentResult } from '../types';
+import { fetchRagContext } from '../integrations/rag.client';
 
 const ollama = new Ollama({ host: process.env.OLLAMA_HOST ?? 'http://localhost:11434' });
 const MODEL = process.env.OLLAMA_MODEL ?? 'edy-assistant';
-const RAG_URL = process.env.RAG_SERVICE_URL ?? 'http://localhost:5001';
-
-// ── Consulta al RAG service (Python/ChromaDB) ─────────────────────────────────
-
-async function fetchRagContext(question: string): Promise<{ context: string; sources: string[] }> {
-    try {
-        const res = await fetch(`${RAG_URL}/query`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ question, top_k: 3 }),
-            signal: AbortSignal.timeout(5000),
-        });
-        if (!res.ok) return { context: '', sources: [] };
-        return res.json() as Promise<{ context: string; sources: string[] }>;
-    } catch {
-        // RAG no disponible — continúa sin contexto extra
-        return { context: '', sources: [] };
-    }
-}
 
 // ── Construir mensaje de sistema con contexto del proyecto ────────────────────
 
@@ -133,9 +115,6 @@ Devuelve este JSON (sin markdown, sin explicaciones):
     "projectName": "nombre del proyecto a crear (solo para CREATE_PROJECT)",
     "stack": "express-ts | express-js | angular | python-flask | python-fastapi | arduino-cpp | generic",
     "description": "descripción del proyecto a crear"
-  }
-}
-    "location": "lugar si pregunta clima"
   }
 }`;
 

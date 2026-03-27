@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import { PrismaClient } from '@prisma/client';
-import { formatDateForReply } from './dateParser';
+import { formatDateForReply } from '../utils/date-parser';
 
 const prisma = new PrismaClient();
 
