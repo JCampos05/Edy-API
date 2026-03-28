@@ -86,15 +86,39 @@ export async function analyzeIntent(text: string): Promise<IntentResult> {
 Texto: "${text}"
 
 Tipos de intent disponibles:
-- CREATE_REMINDER  → recordatorio con fecha/hora ("recuérdame X mañana a las 8")
-- CREATE_TASK      → una sola tarea sin fecha específica ("agrega tarea: revisar PR")
-- CREATE_TASK_BATCH → múltiples tareas en un solo comando ("esta semana necesito: X, Y, Z")
-- CREATE_PROJECT   → crear un proyecto nuevo ("crea un proyecto Express TypeScript llamado mi-api")
-- GET_WEATHER      → consulta de clima
-- GET_TASK_LIST    → listar tareas pendientes
-- OPEN_PROJECT     → cambiar contexto a un proyecto
-- GENERAL_QUERY    → pregunta técnica o consulta general
-- UNKNOWN          → no se reconoció la intención
+- CREATE_REMINDER     → recordatorio con fecha/hora ("recuérdame X mañana a las 8")
+- CREATE_TASK         → una sola tarea sin fecha específica ("agrega tarea: revisar PR")
+- CREATE_TASK_BATCH   → múltiples tareas en un solo comando ("esta semana necesito: X, Y, Z")
+- CREATE_PROJECT      → crear un proyecto nuevo ("crea un proyecto Express TypeScript llamado mi-api")
+- GET_WEATHER         → consulta de clima
+- GET_TASK_LIST       → listar tareas pendientes
+- OPEN_PROJECT        → cambiar contexto a un proyecto
+- RUN_COMMAND         → ejecutar un comando de terminal ("ejecuta npm install en mi-api", "corre npm run dev", "instala express en mi proyecto")
+- INSTALL_DEPS        → instalar dependencias de un proyecto existente ("instala las dependencias de mi-api")
+- CHECK_TOOLS         → verificar herramientas disponibles ("qué herramientas tengo instaladas", "está disponible python?")
+- GENERAL_QUERY       → pregunta técnica o consulta general
+- UNKNOWN             → no se reconoció la intención
+ 
+// Para RUN_COMMAND, INSTALL_DEPS y CHECK_TOOLS, el JSON params debe incluir:
+{
+  "type": "RUN_COMMAND",
+  "confidence": 0.0-1.0,
+  "params": {
+    "command": "npm install express zod",      // comando exacto a ejecutar
+    "projectSlug": "mi-api",                   // slug del proyecto (si aplica)
+    "cwd": null                                // ruta custom (null = usar projectSlug)
+  }
+}
+ 
+// Para INSTALL_DEPS:
+{
+  "type": "INSTALL_DEPS",
+  "params": {
+    "projectSlug": "mi-api"
+  }
+}
+ 
+// Para CHECK_TOOLS no se necesitan params.
 
 Devuelve este JSON (sin markdown, sin explicaciones):
 {

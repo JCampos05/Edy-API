@@ -2,16 +2,27 @@ import fs from 'fs';
 import path from 'path';
 import type { ProjectStack, ProjectScaffoldResult } from '../types/project.types';
 import { toSlug } from '../utils/slug';
+import { npmInstall, pipInstallRequirements, prismaSetup } from './shell.service';
+import type { ShellOptions } from './shell.service';
 
 const CONTEXT_BASE = process.env.CONTEXT_BASE_PATH ?? './projects';
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
+export interface ScaffoldOptions {
+    /** Si es true, ejecuta npm/pip install automáticamente después de crear archivos */
+    autoInstall?: boolean;
+    /** Callback para recibir output de instalación en tiempo real */
+    onInstallOutput?: ShellOptions['onOutput'];
+}
+
 export async function scaffoldProject(
     name: string,
     stack: ProjectStack,
-    description: string = ''
+    description: string = '',
+    options: ScaffoldOptions = {}
 ): Promise<ProjectScaffoldResult> {
+    const { autoInstall = false, onInstallOutput } = options;
 
     const slug = toSlug(name);
     const projectPath = path.join(CONTEXT_BASE, slug);
@@ -35,7 +46,42 @@ export async function scaffoldProject(
         filesCreated.push(filePath);
     }
 
-    return { projectPath, filesCreated, tasksCreated: 0, projectSlug: slug };
+    // ── Auto-install de dependencias ──────────────────────────────────────────
+    let installLog: string[] = [];
+    let installSuccess = true;
+
+    if (autoInstall) {
+        if (['express-ts', 'express-js', 'angular'].includes(stack)) {
+            onInstallOutput?.('Instalando dependencias npm...', 'stdout');
+            const result = await npmInstall(projectPath, onInstallOutput);
+            installLog.push(result.summary);
+            installSuccess = result.success;
+
+            // Si es express-ts, también configurar prisma si la DB está disponible
+            if (stack === 'express-ts' && result.success) {
+                onInstallOutput?.('Generando cliente Prisma...', 'stdout');
+                const [generate] = await prismaSetup(projectPath, onInstallOutput);
+                installLog.push(generate.summary);
+            }
+        }
+
+        if (['python-flask', 'python-fastapi'].includes(stack)) {
+            onInstallOutput?.('Instalando dependencias Python...', 'stdout');
+            const result = await pipInstallRequirements(projectPath, onInstallOutput);
+            installLog.push(result.summary);
+            installSuccess = result.success;
+        }
+    }
+
+    return {
+        projectPath,
+        filesCreated,
+        tasksCreated: 0,
+        projectSlug: slug,
+        // Campos adicionales para el router
+        installLog,
+        installSuccess,
+    };
 }
 
 // ── Archivos comunes ──────────────────────────────────────────────────────────
@@ -265,7 +311,6 @@ function gitignoreFor(stack: ProjectStack): string {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-// toSlug importado desde ../utils/slug
 
 const stackLabels: Partial<Record<ProjectStack, string>> = {
     'express-ts': 'Express.js + TypeScript + Prisma',
